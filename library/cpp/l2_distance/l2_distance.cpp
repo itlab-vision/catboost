@@ -6,6 +6,9 @@
 
 #include <util/system/platform.h>
 
+#include "../../../catboost/time_profile.h"
+
+
 template <typename Result, typename Number>
 inline Result SqrDelta(Number a, Number b) {
     Result diff = a < b ? b - a : a - b;
@@ -334,7 +337,15 @@ ui64 L2SqrDistance(const ui32* a, const ui32* b, int length) {
 }
 
 float L2SqrDistance(const float* a, const float* b, int length) {
+#ifdef __TIME_PROF___
+    TimerForAlg time1("!!! float L2SqrDistance");
+#endif
+
+#ifdef __USE_RVV___
+    return L2SqrDistance_rvv(a, b, length); 
+#else
     return L2SqrDistanceImpl4<float, float>(a, b, length);
+#endif
 }
 
 double L2SqrDistance(const double* a, const double* b, int length) {
@@ -364,7 +375,11 @@ ui64 L2SqrDistanceSlow(const ui32* a, const ui32* b, int length) {
 }
 
 float L2SqrDistanceSlow(const float* a, const float* b, int length) {
+    #ifdef __USE_RVV___
+    return L2SqrDistance_rvv(a, b, length); 
+    #else
     return L2SqrDistanceImpl4<float, float>(a, b, length);
+    #endif
 }
 
 double L2SqrDistanceSlow(const double* a, const double* b, int length) {

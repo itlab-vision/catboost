@@ -12,6 +12,15 @@
 #include <util/generic/hash.h>
 #include <util/generic/ymath.h>
 
+#include "../../../time_profile.h"
+
+#if defined(___DUMP_BinarizeFloats) 
+extern int cntWriteBinarizeFloats;
+extern int maxCntWriteBF;
+#endif
+
+
+
 namespace NCB::NModelEvaluation {
     constexpr size_t FORMULA_EVALUATION_BLOCK_SIZE = 128;
 
@@ -58,6 +67,10 @@ namespace NCB::NModelEvaluation {
         TArrayRef<ui32> transposedHash,
         ui8*& result
     ) {
+    #ifdef __TIME_PROF___
+        TimerForAlg time1("OneHotBinsFromTransposedCatFeatures");
+    #endif
+
         for (const auto& oheFeature : OneHotFeatures) {
             const auto catIdx = catFeaturePackedIndex.at(oheFeature.CatFeatureIndex);
             for (size_t docId = 0; docId < docCount; ++docId) {
@@ -88,6 +101,73 @@ namespace NCB::NModelEvaluation {
         ui8*& result,
         float nanSubstitutionValue = 0.0f
     ) {
+    #ifdef __TIME_PROF_2___ 
+        std::chrono::steady_clock::time_point start_t ;
+        start_t = std::chrono::steady_clock::now();
+    #endif
+
+    #ifdef __TIME_PROF___
+        TimerForAlg time1("BinarizeFloatsNonSse");
+    #endif
+
+    #if defined(___DUMP_BinarizeFloats) 
+        std::stringstream ss;
+        ss << std::setprecision(16);
+        if(cntWriteBinarizeFloats < maxCntWriteBF)
+        {
+            ss << docCount << std::endl;
+            ss << borders.size() << std::endl;
+            for (size_t borderId = 0; borderId < borders.size(); ++borderId) {
+                ss << borders[borderId] << " ";
+            }
+            ss << std::endl;
+            
+            for (size_t docId = 0; docId < docCount; ++docId) {
+                float val = floatAccessor(position, start + docId);
+                if (UseNanSubstitution) {
+                    if (std::isnan(val)) {
+                        val = nanSubstitutionValue;
+                    }
+                }
+                ss << val << " ";
+            }
+            ss << std::endl;
+            
+            ss << MAX_VALUES_PER_BIN << std::endl;
+
+            for (size_t docId = 0; 
+                 docId < docCount * ((borders.size() + MAX_VALUES_PER_BIN - 1) / MAX_VALUES_PER_BIN); 
+                 ++docId) {
+              ss << (uint32_t)result[docId] << " ";
+            }            
+            ss << std::endl;
+        }
+    #endif
+    #ifdef __USE_RVV___
+        #define RVV_BINARIZE_FLOATS_STEP 16
+
+        const auto docCount8 = (docCount | (RVV_BINARIZE_FLOATS_STEP - 1)) ^ (RVV_BINARIZE_FLOATS_STEP - 1);
+        float val[RVV_BINARIZE_FLOATS_STEP];
+        for (size_t docId = 0; docId < docCount8; docId += RVV_BINARIZE_FLOATS_STEP) {
+            for (size_t i = 0; i < RVV_BINARIZE_FLOATS_STEP; ++i) {
+                val[i] = floatAccessor(position, start + docId + i);
+                if (UseNanSubstitution) {
+                    if (std::isnan(val[i])) {
+                        val[i] = nanSubstitutionValue;
+                    }
+                }
+            }
+            
+            BinarizeFloats_rvv(result + docId, 
+                               val, 
+                               RVV_BINARIZE_FLOATS_STEP, 
+                               docCount, 
+                               borders.data(), 
+                               borders.size(), 
+                               MAX_VALUES_PER_BIN);
+        }   
+        #undef RVV_BINARIZE_FLOATS_STEP
+    #else  
         const auto docCount8 = (docCount | 0x7) ^0x7;
         for (size_t docId = 0; docId < docCount8; docId += 8) {
             float val[8] = {
@@ -120,6 +200,7 @@ namespace NCB::NModelEvaluation {
                 writePtr = (ui32*)((ui8*)writePtr + docCount);
             }
         }
+    #endif
         for (size_t docId = docCount8; docId < docCount; ++docId) {
             float val = floatAccessor(position, start + docId);
             if (UseNanSubstitution) {
@@ -137,7 +218,33 @@ namespace NCB::NModelEvaluation {
                 writePtr += docCount;
             }
         }
+    #ifdef ___DUMP_BinarizeFloats
+        if(cntWriteBinarizeFloats < maxCntWriteBF)
+        {
+          for (size_t docId = 0; 
+               docId < docCount * ((borders.size() + MAX_VALUES_PER_BIN - 1) / MAX_VALUES_PER_BIN); 
+               ++docId) {
+            ss << (uint32_t)result[docId] << " ";
+          }            
+          ss << std::endl;
+          
+          std::fstream fs{ "test_data_BinarizeFloats.txt", std::ios::app }; 
+          fs << ss.str() << std::endl;
+          fs << std::setprecision(16);
+        
+          cntWriteBinarizeFloats++;
+        }
+    #endif
+
         result += docCount * ((borders.size() + MAX_VALUES_PER_BIN - 1) / MAX_VALUES_PER_BIN);
+        
+    #ifdef __TIME_PROF_2___ 
+        std::chrono::steady_clock::time_point end_t;
+        end_t = std::chrono::steady_clock::now();
+        auto diff_t = end_t - start_t; 
+        BinarizeFloatsNonSse_time+=std::chrono::duration <double> (diff_t).count();
+    #endif
+
     }
 
 #ifndef ARCADIA_SSE
@@ -274,6 +381,11 @@ namespace NCB::NModelEvaluation {
         ui8** resultPtr,
         const TFeatureLayout* featureInfo = nullptr
     ) {
+        
+
+    #ifdef __TIME_PROF___
+        TimerForAlg time1("ComputeOneHotAndCtrFeaturesForBlock");
+    #endif
         if (applyData.UsedCatFeaturesCount != 0) {
             THashMap<int, int> catFeaturePackedIndexes;
             int usedFeatureIdx = 0;
@@ -350,6 +462,14 @@ namespace NCB::NModelEvaluation {
         TArrayRef<float> estimatedFeatures,
         const TFeatureLayout* featureInfo = nullptr
     ) {
+    #ifdef __TIME_PROF_2___ 
+         std::chrono::steady_clock::time_point start_t ;
+         start_t = std::chrono::steady_clock::now();
+    #endif
+    
+    #ifdef __TIME_PROF___
+        TimerForAlg time1("BinarizeFeatures");
+    #endif
         const auto fullDocCount = end - start;
         auto result = *(cpuEvaluatorQuantizedData->QuantizedData);
         auto expectedQuantizedFeaturesLen = trees.GetEffectiveBinaryFeaturesBucketsCount() * fullDocCount;
@@ -526,6 +646,13 @@ namespace NCB::NModelEvaluation {
                 featureInfo
             );
         }
+        
+    #ifdef __TIME_PROF_2___ 
+        std::chrono::steady_clock::time_point end_t;
+        end_t = std::chrono::steady_clock::now();
+        auto diff_t = end_t - start_t; 
+        BinarizeFeatures_time+=std::chrono::duration <double> (diff_t).count();
+    #endif
     }
 
 /**
@@ -544,6 +671,10 @@ namespace NCB::NModelEvaluation {
         TArrayRef<ui32> transposedHash,
         TArrayRef<float> ctrs
     ) {
+    #ifdef __TIME_PROF___
+        TimerForAlg time1("ComputeEvaluatorFeaturesFromPreQuantizedData");
+    #endif
+
         ui8* resultPtr = cpuEvaluatorQuantizedData->QuantizedData.data();
         size_t requiredSize = trees.GetEffectiveBinaryFeaturesBucketsCount() * (end - start);
         CB_ENSURE(

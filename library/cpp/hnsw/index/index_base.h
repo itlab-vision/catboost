@@ -9,6 +9,7 @@
 #include <util/generic/queue.h>
 #include <util/memory/blob.h>
 
+#include "../../../../catboost/time_profile.h"
 namespace NHnsw {
     /**
      * This class uses ItemStorage created outside successor of this class.
@@ -69,12 +70,22 @@ namespace NHnsw {
             const TDistance& distance = {},
             const TDistanceLess& distanceLess = {}) const
         {
+              #ifdef __TIME_PROF___
+                TimerForAlg time1("HNSW::GetNearestNeighbors");
+              #endif
+
             if (Levels.empty() || searchNeighborhoodSize == 0) {
                 return {};
             }
             ui32 entryId = 0;
             auto entryDist = distance(query, itemStorage.GetItem(entryId));
             bool distanceCalcLimitReached = --distanceCalcLimit == 0;
+            
+            {
+              #ifdef __TIME_PROF___
+                TimerForAlg time1("1            HNSW::GetNearestNeighbors");
+              #endif
+              
             for (ui32 level = GetNumLevels(); level-- > 1 && !distanceCalcLimitReached;) {
                 for (bool entryChanged = true; entryChanged && !distanceCalcLimitReached;) {
                     entryChanged = false;
@@ -92,6 +103,8 @@ namespace NHnsw {
                         }
                     }
                 }
+            }
+            
             }
 
             using TResultItem = TNeighbor<TDistanceResult>;
@@ -112,6 +125,12 @@ namespace NHnsw {
 
             candidates.push({entryDist, entryId});
             visited.Insert(entryId);
+            
+            {
+              #ifdef __TIME_PROF___
+                TimerForAlg time1("2            HNSW::GetNearestNeighbors");
+              #endif
+
 
             while (!candidates.empty() && !distanceCalcLimitReached) {
                 auto cur = candidates.top();
@@ -140,6 +159,7 @@ namespace NHnsw {
                         }
                     }
                 }
+            }
             }
 
             while (nearest.size() > topSize) {

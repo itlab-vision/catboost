@@ -55,7 +55,9 @@ target_link_libraries(catboost-libs-model PUBLIC
   library-cpp-json
   library-cpp-object_factory
   tools-enum_parser-enum_serialization_runtime
+  ${CMAKE_SOURCE_DIR}/3rdparty/catboost_rvv_library/build/catboost_rvv_lib/libcatboost_rvv.a
 )
+
 target_sources(catboost-libs-model PRIVATE
   ${CMAKE_SOURCE_DIR}/catboost/libs/model/cpu/evaluator_impl.cpp
   ${CMAKE_SOURCE_DIR}/catboost/libs/model/cpu/quantization.cpp
@@ -74,6 +76,7 @@ target_sources(catboost-libs-model PRIVATE
   ${CMAKE_SOURCE_DIR}/catboost/libs/model/static_ctr_provider.cpp
   ${CMAKE_SOURCE_DIR}/catboost/libs/model/utils.cpp
 )
+
 generate_enum_serilization(catboost-libs-model
   ${CMAKE_SOURCE_DIR}/catboost/libs/model/ctr_provider.h
   INCLUDE_HEADERS

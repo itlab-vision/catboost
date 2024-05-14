@@ -18,11 +18,36 @@
 #include <util/system/rwlock.h>
 
 #include <cmath>
+#include <iostream>
+#include <map>
+#include <string>
+
+#include "../../../time_profile.h"
+
+#ifdef __TIME_PROF_2___ 
+double CalcIndexesBasic_time = 0.0;
+double CalculateLeafValues_time = 0.0;
+double BinarizeFeatures_time     = 0.0;
+double BinarizeFloatsNonSse_time = 0.0;
+double CalcTreesBlockedImpl_time    = 0.0;
+double CalculateLeafValuesMulti_time= 0.0;
+
+double All_time = 0.0;
+#endif
+
+#ifdef __TIME_PROF___
+__attribute__((constructor)) void init(void) { 
+    std::cout<<"Start"<<std::endl;
+}
+std::mutex m_timer;
+bool timing = false;
+std::map<std::string, double> times;
+std::map<std::string, int> times_count;
+#endif
 
 
 using namespace NCB;
 using NPar::ILocalExecutor;
-
 
 static ILocalExecutor::TExecRangeParams GetBlockParams(int executorThreadCount, int docCount, int treeCount) {
     const int threadCount = executorThreadCount + 1; // one for current thread
@@ -143,6 +168,10 @@ TVector<TVector<double>> ApplyModelMulti(
     ILocalExecutor* executor,
     const NCB::TMaybeData<TConstArrayRef<TConstArrayRef<float>>>& baseline)
 {
+#ifdef __TIME_PROF___
+    TimerForAlg time1("ApplyModelMulti_1");
+    std::cout << "1:" <<begin<<"|"<<end<<"*"<<std::endl;
+#endif
     if (baseline) {
         // TODO: only one dimension of baseline is checked, what about others?
         CB_ENSURE(
@@ -215,6 +244,13 @@ TVector<TVector<double>> ApplyModelMulti(
     int threadCount,
     const NCB::TMaybeData<TConstArrayRef<TConstArrayRef<float>>>& baseline)
 {
+#ifdef __TIME_PROF_2___ 
+    std::chrono::steady_clock::time_point start ;
+    start = std::chrono::steady_clock::now();
+#endif
+#ifdef __TIME_PROF___
+    TimerForAlg time1("ApplyModelMulti_2");
+#endif
     TSetLoggingVerboseOrSilent inThisScope(verbose);
 
     int lastTreeIdx = end;
@@ -227,6 +263,23 @@ TVector<TVector<double>> ApplyModelMulti(
         executor.RunAdditionalThreads(Min<int>(threadCount, blockParams.GetBlockCount()) - 1);
     }
     const auto& result = ApplyModelMulti(model, objectsData, predictionType, begin, end, &executor, baseline);
+    
+#ifdef __TIME_PROF_2___ 
+    std::chrono::steady_clock::time_point end_t;
+    end_t = std::chrono::steady_clock::now();
+    auto diff = end_t - start; 
+    All_time+=std::chrono::duration <double> (diff).count();
+    std::cout << "CalcIndexesBasic_time    :" <<CalcIndexesBasic_time   <<std::endl;
+    std::cout << "CalculateLeafValues_time :" <<CalculateLeafValues_time<<std::endl;
+    std::cout << "BinarizeFeatures_time    :" <<BinarizeFeatures_time    <<std::endl;
+    std::cout << "BinarizeFloatsNonSse_time:" <<BinarizeFloatsNonSse_time<<std::endl;
+    std::cout << "CalcTreesBlockedImpl_time     :"<<CalcTreesBlockedImpl_time    <<std::endl;
+    std::cout << "CalculateLeafValuesMulti_time :"<<CalculateLeafValuesMulti_time<<std::endl;
+    
+    std::cout << "All_time                 :" <<All_time                <<std::endl;
+
+#endif
+    
     return result;
 }
 
@@ -239,7 +292,15 @@ TVector<TVector<double>> ApplyModelMulti(
     int end,
     int threadCount)
 {
+#ifdef __TIME_PROF___
+    std::cout << "!!!-"<<std::endl;
+    TimerForAlg time2("all", true);
+    TimerForAlg time1("ApplyModelMulti_3");
+#endif
     auto approxes = ApplyModelMulti(model, *data.ObjectsData, verbose, predictionType, begin, end, threadCount, data.RawTargetData.GetBaseline());
+#ifdef __TIME_PROF___
+    time2.print();
+#endif
     return approxes;
 }
 
@@ -250,6 +311,10 @@ TMinMax<double> ApplyModelForMinMax(
     int treeEnd,
     NPar::ILocalExecutor* executor)
 {
+#ifdef __TIME_PROF___
+    TimerForAlg time2("all", true);
+    TimerForAlg time1("ApplyModelForMinMax");
+#endif
     CB_ENSURE(model.GetTreeCount(), "Bad usage: empty model");
     CB_ENSURE(model.GetDimensionsCount() == 1, "Bad usage: multiclass/multitarget model, dim=" << model.GetDimensionsCount());
     FixupTreeEnd(model.GetTreeCount(), treeBegin, &treeEnd);
@@ -296,6 +361,10 @@ void TModelCalcerOnPool::ApplyModelMulti(
     TVector<double>* flatApproxBuffer,
     TVector<TVector<double>>* approx)
 {
+#ifdef __TIME_PROF___
+    TimerForAlg time2("all", true);
+    TimerForAlg time1("ApplyModelMulti4");
+#endif
     const ui32 docCount = ObjectsData->GetObjectCount();
     auto approxDimension = Model->GetDimensionsCount();
     TVector<double>& approxFlat = *flatApproxBuffer;

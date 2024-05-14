@@ -8,6 +8,29 @@
 
 #include <cstring>
 
+#include <cmath>
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <iomanip>
+#include <map>
+#include <string>
+
+
+#include "../../../time_profile.h"
+
+#if defined(___DUMP_CalculateLeafValues) || \
+    defined(___DUMP_CalculateLeafValuesMulti) || \
+    defined(___DUMP_CalcIndexesBasic_XOR) || \
+    defined(___DUMP_CalcIndexesBasic) 
+int cntWrite = 0;
+int cntWriteBIX = 0;
+int cntWriteBI = 0;
+int cntWriteLeafValuesMulti = 0;
+int maxCntWrite = 100;
+#endif
+
+
 namespace NCB::NModelEvaluation {
 
     constexpr size_t SSE_BLOCK_SIZE = 16;
@@ -20,6 +43,16 @@ namespace NCB::NModelEvaluation {
             TIndexType* __restrict indexesVec,
             const TRepackedBin* __restrict treeSplitsCurPtr,
             int curTreeSize) {
+        {
+        #ifdef __TIME_PROF_2___ 
+            std::chrono::steady_clock::time_point start ;
+            start = std::chrono::steady_clock::now();
+        #endif
+         
+        #ifdef __TIME_PROF___
+            TimerForAlg time1("CalcIndexesBasic");
+        #endif
+        
         if (START_BLOCK * SSE_BLOCK_SIZE >= docCountInBlock) {
             return;
         }
@@ -30,6 +63,28 @@ namespace NCB::NModelEvaluation {
             const ui8* __restrict binFeaturePtr = &binFeatures[featureId * docCountInBlock];
             const ui8 xorMask = treeSplitsCurPtr[depth].XorMask;
             if (NeedXorMask) {
+            #ifdef ___DUMP_CalcIndexesBasic_XOR
+                std::stringstream ss_BIX;
+                if(cntWriteBIX < maxCntWrite)
+                {
+                    ss_BIX << START_BLOCK * SSE_BLOCK_SIZE << std::endl;
+                    ss_BIX << docCountInBlock << std::endl;
+                    ss_BIX << (uint32_t)xorMask  << std::endl;
+                    ss_BIX << (uint32_t)borderVal << std::endl;
+                    ss_BIX << depth << std::endl;
+                    for (size_t docId = 0; docId < docCountInBlock; ++docId)
+                    {
+                        ss_BIX << (uint32_t)binFeaturePtr[docId] << " ";
+                    }
+                    ss_BIX << std::endl;
+                    for (size_t docId = 0; docId < docCountInBlock; ++docId)
+                    {
+                        ss_BIX << indexesVec[docId] << " ";
+                    }
+                    ss_BIX << std::endl;
+                }
+            #endif
+              
                 Y_PREFETCH_READ(binFeaturePtr, 3);
                 Y_PREFETCH_WRITE(indexesVec, 3);
                 #ifndef _ubsan_enabled_
@@ -38,16 +93,89 @@ namespace NCB::NModelEvaluation {
                 for (size_t docId = START_BLOCK * SSE_BLOCK_SIZE; docId < docCountInBlock; ++docId) {
                     indexesVec[docId] |= ((binFeaturePtr[docId] ^ xorMask) >= borderVal) << depth;
                 }
+            #ifdef ___DUMP_CalcIndexesBasic_XOR
+                if(cntWriteBIX < maxCntWrite)
+                {
+                    for (size_t docId = 0; docId < docCountInBlock; ++docId)
+                    {
+                        ss_BIX << indexesVec[docId] << " ";
+                    }
+                    ss_BIX << std::endl;
+                    
+                    std::fstream fs{ "test_data_BIX.txt", std::ios::app }; 
+                    fs << ss_BIX.str() << std::endl;
+                  
+                    cntWriteBIX++;
+                }
+            #endif
+
             } else {
+            #ifdef ___DUMP_CalcIndexesBasic
+                std::stringstream ss_BI;
+                if(cntWriteBI < maxCntWrite)
+                {
+                    ss_BI << START_BLOCK * SSE_BLOCK_SIZE << std::endl;
+                    ss_BI << docCountInBlock << std::endl;
+                    ss_BI << (uint32_t)borderVal << std::endl;
+                    ss_BI << depth << std::endl;
+                    ss_BI << sizeof(binFeatures[0]) << " " << sizeof(ui8) << " " << sizeof(TIndexType) << std::endl;
+                    
+                    for (size_t docId = 0; docId < docCountInBlock; ++docId)
+                    {
+                        ss_BI << (uint32_t)binFeaturePtr[docId] << " ";
+                    }
+                    ss_BI << std::endl;
+                    for (size_t docId = 0; docId < docCountInBlock; ++docId)
+                    {
+                        ss_BI << indexesVec[docId] << " ";
+                    }
+                    ss_BI << std::endl;
+                }
+            #endif
+
                 Y_PREFETCH_READ(binFeaturePtr, 3);
                 Y_PREFETCH_WRITE(indexesVec, 3);
+            #ifdef __USE_RVV___
+                CalcIndexesBasic_without_xor_rvv(
+                  indexesVec,
+                        binFeaturePtr,
+                        borderVal,
+                        depth,
+                        START_BLOCK * SSE_BLOCK_SIZE,
+                  docCountInBlock);
+            #else
                 #ifndef _ubsan_enabled_
                 #pragma clang loop vectorize_width(16)
                 #endif
                 for (size_t docId = START_BLOCK * SSE_BLOCK_SIZE; docId < docCountInBlock; ++docId) {
                     indexesVec[docId] |= ((binFeaturePtr[docId]) >= borderVal) << depth;
                 }
+            #endif
+            #ifdef ___DUMP_CalcIndexesBasic
+                if(cntWriteBI < maxCntWrite)
+                {
+                  for (size_t docId = 0; docId < docCountInBlock; ++docId)
+                  {
+                      ss_BI << indexesVec[docId] << " ";
+                  }
+                  ss_BI << std::endl;
+                  
+                  std::fstream fs{ "test_data_BI.txt", std::ios::app }; 
+                  fs << ss_BI.str() << std::endl;
+                
+                  cntWriteBI++;
+                }
+            #endif
+
             }
+        }
+        #ifdef __TIME_PROF_2___ 
+            std::chrono::steady_clock::time_point end;
+            end = std::chrono::steady_clock::now();
+            auto diff = end - start; 
+            CalcIndexesBasic_time+=std::chrono::duration <double> (diff).count();
+        #endif
+
         }
     }
 
@@ -153,6 +281,43 @@ namespace NCB::NModelEvaluation {
 
     template <typename TIndexType>
     Y_FORCE_INLINE void CalculateLeafValues(const size_t docCountInBlock, const double* __restrict treeLeafPtr, const TIndexType* __restrict indexesPtr, double* __restrict writePtr) {
+    #ifdef __TIME_PROF_2___ 
+        std::chrono::steady_clock::time_point start ;
+        start = std::chrono::steady_clock::now();
+    #endif
+
+    #ifdef __TIME_PROF___
+        TimerForAlg time1("CalculateLeafValues");
+    #endif
+        
+      
+    #ifdef ___DUMP_CalculateLeafValues
+        double* writePtr_s = writePtr;
+        std::stringstream ss;
+        ss << std::setprecision(16);
+        if(cntWrite < maxCntWrite)
+        {
+            ss << docCountInBlock << std::endl;
+            
+            for (size_t docId = 0; docId < docCountInBlock; ++docId)
+            {
+                ss << indexesPtr[docId] << " ";
+            }
+            ss << std::endl;
+            for (size_t docId = 0; docId < docCountInBlock; ++docId)
+            {
+                ss << treeLeafPtr[docId] << " ";
+            }
+            ss << std::endl;
+            for (size_t docId = 0; docId < docCountInBlock; ++docId)
+            {
+                ss << writePtr[docId] << " ";
+            }
+            ss << std::endl;
+        }
+         
+    #endif
+      
         Y_PREFETCH_READ(treeLeafPtr, 3);
         Y_PREFETCH_READ(treeLeafPtr + 128, 3);
         const auto docCountInBlock4 = (docCountInBlock | 0x3) ^ 0x3;
@@ -169,6 +334,30 @@ namespace NCB::NModelEvaluation {
             ++writePtr;
             ++indexesPtr;
         }
+          
+    #ifdef ___DUMP_CalculateLeafValues
+        if(cntWrite < maxCntWrite)
+        {
+            for (size_t docId = 0; docId < docCountInBlock; ++docId)
+            {
+                ss << writePtr_s[docId] << " ";
+            }
+            ss << std::endl;
+            
+            std::fstream fs{ "test_data.txt", std::ios::app }; 
+            fs << ss.str() << std::endl;
+            fs << std::setprecision(16);
+          
+            cntWrite++;
+        }
+    #endif
+    #ifdef __TIME_PROF_2___ 
+        std::chrono::steady_clock::time_point end;
+        end = std::chrono::steady_clock::now();
+        auto diff = end - start; 
+        CalculateLeafValues_time+=std::chrono::duration <double> (diff).count();
+    #endif
+
     }
 
     #ifdef _sse3_
@@ -245,6 +434,40 @@ namespace NCB::NModelEvaluation {
 
     template <typename TIndexType>
     Y_FORCE_INLINE void CalculateLeafValuesMulti(const size_t docCountInBlock, const double* __restrict leafPtr, const TIndexType* __restrict indexesVec, const int approxDimension, double* __restrict writePtr) {
+    #ifdef __TIME_PROF___
+        TimerForAlg time1("CalculateLeafValuesMulti");
+    #endif
+    #ifdef __TIME_PROF_2___ 
+        std::chrono::steady_clock::time_point start ;
+        start = std::chrono::steady_clock::now();
+    #endif
+    
+    #ifdef ___DUMP_CalculateLeafValuesMulti
+        std::stringstream ss;
+        ss << std::setprecision(16);
+        double* writePtr_s = writePtr;
+        if(cntWriteLeafValuesMulti < maxCntWrite)
+        {
+            ss << docCountInBlock << std::endl;
+            ss << approxDimension << std::endl;
+
+            for (size_t docId = 0; docId < docCountInBlock; ++docId) {
+                auto leafValuePtr = leafPtr + indexesVec[docId] * approxDimension;
+                for (int classId = 0; classId < approxDimension; ++classId) {
+                    ss << leafValuePtr[classId] << " ";
+                }
+            }
+            ss << std::endl;
+            for (size_t docId = 0; docId < docCountInBlock * approxDimension; ++docId)
+            {
+                ss << writePtr_s[docId] << " ";
+            }
+            ss << std::endl;
+        }
+         
+    #endif
+
+        
         for (size_t docId = 0; docId < docCountInBlock; ++docId) {
             auto leafValuePtr = leafPtr + indexesVec[docId] * approxDimension;
             for (int classId = 0; classId < approxDimension; ++classId) {
@@ -252,10 +475,34 @@ namespace NCB::NModelEvaluation {
             }
             writePtr += approxDimension;
         }
+    #ifdef ___DUMP_CalculateLeafValuesMulti
+        if(cntWriteLeafValuesMulti < maxCntWrite)
+        {
+            for (size_t docId = 0; docId < docCountInBlock * approxDimension; ++docId)
+            {
+                ss << writePtr_s[docId] << " ";
+            }
+            ss << std::endl;
+            
+            std::fstream fs{ "test_data_LeafValuesMulti.txt", std::ios::app }; 
+            fs << ss.str() << std::endl;
+            fs << std::setprecision(16);
+          
+            cntWriteLeafValuesMulti++;
+        }
+    #endif
+
+    #ifdef __TIME_PROF_2___ 
+        std::chrono::steady_clock::time_point end;
+        end = std::chrono::steady_clock::now();
+        auto diff = end - start; 
+        CalculateLeafValuesMulti_time+=std::chrono::duration <double> (diff).count();
+    #endif
     }
 
     template <bool IsSingleClassModel, bool NeedXorMask, int SSEBlockCount, bool CalcLeafIndexesOnly = false>
     Y_FORCE_INLINE void CalcTreesBlockedImpl(
+    
         const TModelTrees& trees,
         const TModelTrees::TForApplyData& applyData,
         const ui8* __restrict binFeatures,
@@ -264,13 +511,21 @@ namespace NCB::NModelEvaluation {
         size_t treeStart,
         const size_t treeEnd,
         double* __restrict resultsPtr) {
+    #ifdef __TIME_PROF___
+        TimerForAlg time1("CalcTreesBlockedImpl");
+    #endif
+    #ifdef __TIME_PROF_2___ 
+        std::chrono::steady_clock::time_point start ;
+        start = std::chrono::steady_clock::now();
+    #endif
+
         const TRepackedBin* treeSplitsCurPtr =
             trees.GetRepackedBins().data() + trees.GetModelTreeData()->GetTreeStartOffsets()[treeStart];
 
         ui8* __restrict indexesVec = (ui8*)indexesVecUI32;
         const auto treeLeafPtr = trees.GetModelTreeData()->GetLeafValues().data();
         auto firstLeafOffsetsPtr = applyData.TreeFirstLeafOffsets.data();
-    #ifdef _sse3_
+#ifdef _sse3_
         bool allTreesAreShallow = AllOf(
             trees.GetModelTreeData()->GetTreeSizes().begin() + treeStart,
             trees.GetModelTreeData()->GetTreeSizes().begin() + treeEnd,
@@ -327,6 +582,7 @@ namespace NCB::NModelEvaluation {
         for (size_t treeId = treeStart; treeId < treeEnd; ++treeId) {
             auto curTreeSize = trees.GetModelTreeData()->GetTreeSizes()[treeId];
             memset(indexesVec, 0, sizeof(ui32) * docCountInBlock);
+            
 #ifdef _sse3_
             if (!CalcLeafIndexesOnly && curTreeSize <= 8) {
                 CalcIndexesSse<NeedXorMask, SSEBlockCount>(binFeatures, docCountInBlock, indexesVec, treeSplitsCurPtr,
@@ -358,6 +614,13 @@ namespace NCB::NModelEvaluation {
             }
             treeSplitsCurPtr += curTreeSize;
         }
+    #ifdef __TIME_PROF_2___ 
+        std::chrono::steady_clock::time_point end;
+        end = std::chrono::steady_clock::now();
+        auto diff = end - start; 
+        CalcTreesBlockedImpl_time+=std::chrono::duration <double> (diff).count();
+    #endif
+
     }
 
     template <bool IsSingleClassModel, bool NeedXorMask, bool CalcLeafIndexesOnly = false>
@@ -370,6 +633,7 @@ namespace NCB::NModelEvaluation {
         size_t treeStart,
         size_t treeEnd,
         double* __restrict resultsPtr) {
+                        
         const ui8* __restrict binFeatures = quantizedData->QuantizedData.data();
         switch (docCountInBlock / SSE_BLOCK_SIZE) {
             case 0:
@@ -423,6 +687,10 @@ namespace NCB::NModelEvaluation {
         size_t treeStart,
         size_t treeEnd,
         double* __restrict results) {
+    #ifdef __TIME_PROF___
+        TimerForAlg time1("CalcTreesSingleDocImpl");
+    #endif
+                    
         const ui8* __restrict binFeatures = quantizedData->QuantizedData.data();
         Y_ASSERT(calcIndexesOnly || (results && AllOf(results, results + trees.GetDimensionsCount(),
                                                       [](double value) { return value == 0.0; })));
@@ -468,6 +736,10 @@ namespace NCB::NModelEvaluation {
         const size_t treeId,
         TCalcerIndexType* __restrict indexesVec
     ) {
+    #ifdef __TIME_PROF___
+        TimerForAlg time1("CalcIndexesNonSymmetric");
+    #endif
+        
         const TRepackedBin* treeSplitsPtr = trees.GetRepackedBins().data();
         const TNonSymmetricTreeStepNode* treeStepNodes = trees.GetModelTreeData()->GetNonSymmetricStepNodes().data();
         std::fill(indexesVec + firstDocId, indexesVec + docCountInBlock, trees.GetModelTreeData()->GetTreeStartOffsets()[treeId]);
@@ -670,6 +942,10 @@ namespace NCB::NModelEvaluation {
         size_t treeEnd,
         double* __restrict resultsPtr
     ) {
+    #ifdef __TIME_PROF___
+        TimerForAlg time1("CalcNonSymmetricTrees_");
+    #endif
+        
         const ui8* __restrict binFeatures = quantizedData->QuantizedData.data();
         for (size_t treeId = treeStart; treeId < treeEnd; ++treeId) {
             CalcIndexesNonSymmetric<NeedXorMask>(trees, binFeatures, 0, docCountInBlock, treeId, indexesVec);
@@ -716,6 +992,10 @@ namespace NCB::NModelEvaluation {
         size_t treeEnd,
         double* __restrict resultsPtr
     ) {
+    #ifdef __TIME_PROF___
+        TimerForAlg time1("CalcNonSymmetricTreesSingle");
+    #endif
+        
         const ui8* __restrict binFeatures = quantizedData->QuantizedData.data();
         TCalcerIndexType index;
         const TRepackedBin* treeSplitsPtr = trees.GetRepackedBins().data();

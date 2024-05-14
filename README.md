@@ -29,6 +29,7 @@ Get Started and Documentation
 All CatBoost documentation is available [here](https://catboost.ai/docs/).
 
 Install CatBoost by following the guide for the
+ * [Python package (RVV 0.7.1)](README_RVV.md)
  * [Python package](https://catboost.ai/en/docs/concepts/python-installation)
  * [R-package](https://catboost.ai/en/docs/concepts/r-installation)
  * [Сommand line](https://catboost.ai/en/docs/concepts/cli-installation)

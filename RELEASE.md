@@ -1,3 +1,11 @@
+# Release 1.2.2 RVV 0.7.1
+
+## New features
+* Add the library of CatBoost functions optimized for the RISC-V platform (`3rdparty/catboost_rvv_library`).
+* Integrate the library of CatBoost functions optimized for the RISC-V platform into the CatBoost library.
+* Modify build files to support building on RISC-V platforms.
+* Add examples for assessing accuracy and performance of the Catboost library with RVV 0.7.1 support on RISC-V platforms (`samples/training_benchmarking_rvv_library`).
+
 # Release 1.2.2
 
 ## Bugfixes
