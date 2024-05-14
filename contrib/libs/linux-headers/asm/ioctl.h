@@ -6,6 +6,8 @@
 #include "ioctl_powerpc.h"
 #elif defined(__i386__) || defined(__x86_64__)
 #include "ioctl_x86.h"
+#elif defined(__riscv)
+#include "ioctl_riscv64.h"
 #else
 #error unexpected
 #endif

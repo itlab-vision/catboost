@@ -19,6 +19,11 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_6
   set(RAGEL_FLAGS -L -I ${CMAKE_SOURCE_DIR}/)
 endif()
 
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "riscv64" AND NOT HAVE_CUDA)
+    set(FBS_CPP_FLAGS --no-warnings --cpp --keep-prefix --gen-mutable --schema -b --yandex-maps-iter --gen-object-api --filename-suffix .fbs)
+    set(RAGEL_FLAGS -L -I ${CMAKE_SOURCE_DIR}/)
+endif()
+
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
   set(FBS_CPP_FLAGS --no-warnings --cpp --keep-prefix --gen-mutable --schema -b --yandex-maps-iter --gen-object-api --filename-suffix .fbs)
   set(RAGEL_FLAGS -L -I ${CMAKE_SOURCE_DIR}/)
@@ -84,4 +89,3 @@ if(ANDROID AND CMAKE_ANDROID_ARCH STREQUAL "x86_64")
   set(FBS_CPP_FLAGS --no-warnings --cpp --keep-prefix --gen-mutable --schema -b --yandex-maps-iter --gen-object-api --filename-suffix .fbs)
   set(RAGEL_FLAGS -L -I ${CMAKE_SOURCE_DIR}/)
 endif()
-

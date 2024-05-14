@@ -6,6 +6,8 @@
 #include "unistd_powerpc.h"
 #elif defined(__i386__) || defined(__x86_64__)
 #include "unistd_x86.h"
+#elif defined(__riscv)
+#include "unistd_riscv64.h"
 #else
 #error unexpected
 #endif

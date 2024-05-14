@@ -18,4 +18,6 @@ elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "
   include(CMakeLists.linux-ppc64le-cuda.txt)
 elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
   include(CMakeLists.linux-x86_64.txt)
+elseif (CMAKE_SYSTEM_PROCESSOR STREQUAL "riscv64")
+  include(CMakeLists.linux-riscv64.txt)
 endif()

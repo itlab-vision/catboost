@@ -11,7 +11,7 @@
 
 #define STACK_ALIGN (8 * PLATFORM_DATA_ALIGN)
 
-#if defined(_x86_64_) || defined(_i386_) || defined(_arm_) || defined(_ppc64_)
+#if defined(_x86_64_) || defined(_i386_) || defined(_arm_) || defined(_ppc64_) || defined(_riscv64_)
     #define STACK_GROW_DOWN 1
 #else
     #error todo

@@ -39,6 +39,10 @@
         #define _darwin_
     #endif
 
+    #if defined(__riscv)
+        #define _riscv64_
+    #endif
+
     #if defined(__ANDROID__)
         #define _android_
     #endif
@@ -107,7 +111,7 @@
     #define _ppc64_
 #endif
 
-#if !defined(sparc) && !defined(__sparc) && !defined(__hpux__) && !defined(__alpha__) && !defined(_ia64_) && !defined(_x86_64_) && !defined(_arm_) && !defined(_i386_) && !defined(_ppc_) && !defined(_ppc64_)
+#if !defined(sparc) && !defined(__sparc) && !defined(__hpux__) && !defined(__alpha__) && !defined(_ia64_) && !defined(_x86_64_) && !defined(_arm_) && !defined(_i386_) && !defined(_ppc_) && !defined(_ppc64_) && !defined(_riscv64_)
     #error "platform not defined, please, define one"
 #endif
 
@@ -183,7 +187,7 @@
 #endif
 
 // 16, 32 or 64
-#if defined(__sparc_v9__) || defined(_x86_64_) || defined(_ia64_) || defined(_arm64_) || defined(_ppc64_)
+#if defined(__sparc_v9__) || defined(_x86_64_) || defined(_ia64_) || defined(_arm64_) || defined(_ppc64_) || defined(_riscv64_)
     #define _64_
 #else
     #define _32_
