@@ -103,5 +103,5 @@ less impact on overall calculation time).
 
 ```bash
 cd samples/training_benchmarking_rvv_library
-python _main.py
+python main_benchmark.py
 ```
